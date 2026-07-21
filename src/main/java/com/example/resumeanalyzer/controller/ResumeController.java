@@ -27,24 +27,31 @@ import org.springframework.web.multipart.MultipartFile;
 public class ResumeController {
 
 
+
     @Autowired
     private ResumeService resumeService;
+
 
 
     @Autowired
     private GroqService geminiService;
 
 
+
     @Autowired
     private ResumeAnalysisRepository repository;
+
 
 
     @Autowired
     private UserRepository userRepository;
 
 
+
     @Autowired
     private PdfService pdfService;
+
+
 
 
 
@@ -66,26 +73,85 @@ public class ResumeController {
 
 
 
+
+
         String text = resumeService.extractText(file);
 
 
 
-        if(text == null || text.trim().length() < 50){
 
-            throw new Exception("Invalid Resume");
+
+
+        if(text == null || text.trim().length() < 100){
+
+            throw new Exception(
+                    "Invalid Resume"
+            );
 
         }
 
 
 
 
+
+
+
+        String lowerText = text.toLowerCase();
+
+
+
+
+        boolean hasResumeKeywords =
+
+                lowerText.contains("experience")
+                ||
+                lowerText.contains("education")
+                ||
+                lowerText.contains("skills")
+                ||
+                lowerText.contains("project")
+                ||
+                lowerText.contains("technical skills")
+                ||
+                lowerText.contains("work")
+                ||
+                lowerText.contains("certification");
+
+
+
+
+
+
+        if(!hasResumeKeywords){
+
+
+            throw new Exception(
+                    "Uploaded file is not a valid resume"
+            );
+
+
+        }
+
+
+
+
+
+
+
         String analysis =
+
                 geminiService.analyzeResume(text);
 
 
 
 
+
+
+
+
+
         User user =
+
                 userRepository
                 .findByEmail(email)
                 .orElse(null);
@@ -93,28 +159,59 @@ public class ResumeController {
 
 
 
+
+
+
+
         ResumeAnalysis resume =
+
                 new ResumeAnalysis();
 
 
 
+
+
+
         resume.setFileName(
+
                 file.getOriginalFilename()
+
         );
+
+
+
+
 
 
         resume.setResumeText(text);
 
 
+
+
+
+
         resume.setAnalysis(analysis);
 
 
+
+
+
+
         resume.setAtsScore(
+
                 extractScore(analysis)
+
         );
 
 
+
+
+
+
         resume.setUser(user);
+
+
+
 
 
 
@@ -122,10 +219,16 @@ public class ResumeController {
 
 
 
+
+
+
         return new ResumeResponse(analysis);
 
 
+
     }
+
+
 
 
 
@@ -135,20 +238,31 @@ public class ResumeController {
 
     @GetMapping("/history")
     public List<ResumeAnalysis> getHistory(
+
             @RequestParam("email") String email
+
     ){
 
 
+
+
+
         User user =
+
                 userRepository
                 .findByEmail(email)
                 .orElse(null);
 
 
 
+
+
         return repository.findByUser(user);
 
+
+
     }
+
 
 
 
@@ -159,11 +273,15 @@ public class ResumeController {
 
     @DeleteMapping("/delete/{id}")
     public String deleteResume(
+
             @PathVariable Long id
+
     ){
 
 
+
         repository.deleteById(id);
+
 
 
         return "Resume deleted successfully";
@@ -178,27 +296,40 @@ public class ResumeController {
 
 
 
+
     @GetMapping("/download-report")
     public ResponseEntity<byte[]> downloadReport(
+
             @RequestParam("analysis") String analysis
+
     ) throws Exception {
 
 
 
+
         byte[] pdf =
+
                 pdfService.generateReport(analysis);
+
+
+
 
 
 
         return ResponseEntity.ok()
 
                 .header(
+
                         HttpHeaders.CONTENT_DISPOSITION,
+
                         "attachment; filename=AI_Resume_Report.pdf"
+
                 )
 
                 .contentType(
+
                         MediaType.APPLICATION_PDF
+
                 )
 
                 .body(pdf);
@@ -214,45 +345,66 @@ public class ResumeController {
 
 
 
+
     private String extractScore(String analysis){
+
 
 
         try{
 
 
             Pattern pattern =
+
                     Pattern.compile(
+
                     "ATS\\s*(?:Compatibility)?\\s*Score[:\\s]*(\\d+)",
+
                     Pattern.CASE_INSENSITIVE
+
                     );
 
 
 
+
             Matcher matcher =
+
                     pattern.matcher(analysis);
+
+
 
 
 
             if(matcher.find()){
 
+
                 return matcher.group(1);
+
 
             }
 
 
+
         }
+
         catch(Exception e){
+
 
             e.printStackTrace();
 
+
         }
+
+
 
 
 
         return "0";
 
 
+
     }
+
+
 
 
 
