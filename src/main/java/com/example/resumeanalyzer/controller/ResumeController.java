@@ -27,6 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class ResumeController {
 
 
+
     @Autowired
     private ResumeService resumeService;
 
@@ -50,6 +51,8 @@ public class ResumeController {
 
 
 
+
+
     @PostMapping("/upload")
     public ResumeResponse uploadResume(
             @RequestParam("file") MultipartFile file,
@@ -57,22 +60,11 @@ public class ResumeController {
     ) throws Exception {
 
 
+
         if(file.isEmpty()){
 
-            throw new Exception("File is empty");
-
-        }
-
-
-
-        String text = resumeService.extractText(file);
-
-
-
-        if(text == null || text.trim().length() < 100){
-
             throw new Exception(
-                    "Invalid Resume"
+                    "File is empty"
             );
 
         }
@@ -81,20 +73,64 @@ public class ResumeController {
 
 
 
-        String lowerText = text.toLowerCase();
+
+        String text =
+                resumeService.extractText(file);
+
+
+
+
+
+
+        if(text == null || text.trim().length() < 150){
+
+
+            throw new Exception(
+                    "Please upload a valid resume"
+            );
+
+
+        }
+
+
+
+
+
+
+
+        String lowerText =
+                text.toLowerCase();
+
+
 
 
 
 
         boolean hasEmail =
-                lowerText.contains("@");
+                lowerText.matches(
+                "(?s).*\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b.*"
+                );
+
+
+
+
+
+        boolean hasPhone =
+                lowerText.matches(
+                "(?s).*\\b[0-9]{10}\\b.*"
+                );
+
+
 
 
 
         boolean hasEducation =
+
                 lowerText.contains("education")
                 ||
                 lowerText.contains("b.tech")
+                ||
+                lowerText.contains("btech")
                 ||
                 lowerText.contains("bachelor")
                 ||
@@ -106,7 +142,31 @@ public class ResumeController {
 
 
 
+
+
+
+        boolean hasSkills =
+
+                lowerText.contains("skills")
+                ||
+                lowerText.contains("technical skills")
+                ||
+                lowerText.contains("programming")
+                ||
+                lowerText.contains("java")
+                ||
+                lowerText.contains("python")
+                ||
+                lowerText.contains("javascript");
+
+
+
+
+
+
+
         boolean hasExperience =
+
                 lowerText.contains("experience")
                 ||
                 lowerText.contains("internship")
@@ -117,16 +177,12 @@ public class ResumeController {
 
 
 
-        boolean hasSkills =
-                lowerText.contains("skills")
-                ||
-                lowerText.contains("technical skills")
-                ||
-                lowerText.contains("programming");
+
 
 
 
         boolean hasProject =
+
                 lowerText.contains("project")
                 ||
                 lowerText.contains("projects");
@@ -135,40 +191,57 @@ public class ResumeController {
 
 
 
-        int resumeScore = 0;
+
+
+
+
+        int points = 0;
+
+
 
 
 
         if(hasEmail)
-            resumeScore++;
+            points++;
+
+
+
+
+        if(hasPhone)
+            points++;
+
+
 
 
         if(hasEducation)
-            resumeScore++;
+            points++;
 
 
-        if(hasExperience)
-            resumeScore++;
 
 
         if(hasSkills)
-            resumeScore++;
-
-
-        if(hasProject)
-            resumeScore++;
+            points++;
 
 
 
 
+        if(hasExperience || hasProject)
+            points++;
 
 
 
-        if(resumeScore < 3){
+
+
+
+
+
+        if(points < 4){
+
 
             throw new Exception(
                     "Uploaded file is not a valid resume"
             );
+
 
         }
 
@@ -178,7 +251,9 @@ public class ResumeController {
 
 
 
+
         String analysis =
+
                 geminiService.analyzeResume(text);
 
 
@@ -187,7 +262,10 @@ public class ResumeController {
 
 
 
+
+
         User user =
+
                 userRepository
                 .findByEmail(email)
                 .orElse(null);
@@ -198,7 +276,10 @@ public class ResumeController {
 
 
 
+
+
         ResumeAnalysis resume =
+
                 new ResumeAnalysis();
 
 
@@ -206,9 +287,17 @@ public class ResumeController {
 
 
 
+
+
+
         resume.setFileName(
+
                 file.getOriginalFilename()
+
         );
+
+
+
 
 
 
@@ -216,17 +305,32 @@ public class ResumeController {
 
 
 
+
+
+
         resume.setAnalysis(analysis);
 
 
 
+
+
+
         resume.setAtsScore(
+
                 extractScore(analysis)
+
         );
 
 
 
+
+
+
         resume.setUser(user);
+
+
+
+
 
 
 
@@ -236,7 +340,12 @@ public class ResumeController {
 
 
 
+
+
+
+
         return new ResumeResponse(analysis);
+
 
 
     }
@@ -251,18 +360,24 @@ public class ResumeController {
 
     @GetMapping("/history")
     public List<ResumeAnalysis> getHistory(
+
             @RequestParam("email") String email
+
     ){
 
 
+
         User user =
+
                 userRepository
                 .findByEmail(email)
                 .orElse(null);
 
 
 
+
         return repository.findByUser(user);
+
 
 
     }
@@ -274,13 +389,18 @@ public class ResumeController {
 
 
 
+
     @DeleteMapping("/delete/{id}")
     public String deleteResume(
+
             @PathVariable Long id
+
     ){
 
 
+
         repository.deleteById(id);
+
 
 
         return "Resume deleted successfully";
@@ -295,29 +415,42 @@ public class ResumeController {
 
 
 
+
     @GetMapping("/download-report")
     public ResponseEntity<byte[]> downloadReport(
+
             @RequestParam("analysis") String analysis
+
     ) throws Exception {
 
 
+
         byte[] pdf =
+
                 pdfService.generateReport(analysis);
+
+
 
 
 
         return ResponseEntity.ok()
 
                 .header(
+
                         HttpHeaders.CONTENT_DISPOSITION,
+
                         "attachment; filename=AI_Resume_Report.pdf"
+
                 )
 
                 .contentType(
+
                         MediaType.APPLICATION_PDF
+
                 )
 
                 .body(pdf);
+
 
 
     }
@@ -329,38 +462,57 @@ public class ResumeController {
 
 
 
+
     private String extractScore(String analysis){
+
 
 
         try{
 
 
+
             Pattern pattern =
+
                     Pattern.compile(
+
                     "ATS\\s*(?:Compatibility)?\\s*Score[:\\s]*(\\d+)",
+
                     Pattern.CASE_INSENSITIVE
+
                     );
 
 
 
+
             Matcher matcher =
+
                     pattern.matcher(analysis);
+
 
 
 
             if(matcher.find()){
 
+
                 return matcher.group(1);
 
+
             }
+
+
 
 
         }
         catch(Exception e){
 
+
             e.printStackTrace();
 
+
         }
+
+
+
 
 
 
